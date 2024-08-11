@@ -8,9 +8,10 @@ cur = con.cursor()
 # Importing expected columns and checking
 #file_path = 
 data = pd.read_csv("C:/Users/alaca/Desktop/1/REcs_of_D_kerekek/Recs/REcs_of_D_trydata3.csv")
+data_sorted = data.sort_values(by='Scoredby', ascending=False)
 
 expected_columns = ['Title', 'Genre', 'Synopsis', 'Type', 'Studio', 'Rating', 'Scoredby', 'Episodes', 'Source', 'Aired', 'Image_url']
-missing_columns = [col for col in expected_columns if col not in data.columns]
+missing_columns = [col for col in expected_columns if col not in data_sorted.columns]
 if missing_columns:
     st.error(f"Missing columns in the csv file: {missing_columns}")
     st.stop()
@@ -21,7 +22,7 @@ st.set_page_config(page_title="Movie Recommender", layout="wide")
 if "watched_movies" not in st.session_state:
     st.session_state.watched_movies = []
 if "tags" not in st.session_state:
-    st.session_state.tags = {row['Title']: "" for _, row in data.iterrows()}
+    st.session_state.tags = {row['Title']: "" for _, row in data_sorted.iterrows()}
 if "show_watched_list" not in st.session_state:
     st.session_state.show_watched_list = False
 if "current_user" not in st.session_state:
@@ -41,6 +42,10 @@ def add_animedata(username,title,rating,state):
     con.commit()
 def show_user_list(username):
     cur.execute('SELECT * FROM movietable WHERE username =?', (username,))
+    data = cur.fetchall()
+    return data
+def registered_title_check(username,title):
+    cur.execute('SELECT * FROM movietable WHERE username =? AND title =?', (username,title))
     data = cur.fetchall()
     return data
 
@@ -69,7 +74,7 @@ def show_home_page(user_name):
         return
     
     search_query = st.text_input("Search for a movie", key="search_input").lower()
-    filtered_data = data[data['Title'].str.lower().str.contains(search_query)]
+    filtered_data = data_sorted[data_sorted['Title'].str.lower().str.contains(search_query)]
 
     # Page size is adjustable
     page_size = 12
@@ -121,9 +126,13 @@ def show_home_page(user_name):
         states = ["Continuing","Completed","On-Hold","Dropped","Plan to Watch"]
         statebox = st.selectbox(f"State of {row['Title']}",states, key=f'state_{index}')
         state_index = states.index(statebox)
-        if st.button(f'Save Rating and State {row["Title"]}', key=f'save-{index}'):
-            add_animedata(st.session_state.current_user[0],row["Title"],rating,state_index)
-            st.success('Rating saved and movie marked as watched!')
+        title_check = registered_title_check(user_name,row["Title"])
+        if title_check:
+            return
+        else:
+            if st.button(f'Save Rating and State {row["Title"]}', key=f'save-{index}'):
+                add_animedata(user_name,row["Title"],rating,state_index)
+                st.success('Rating saved and movie marked as watched!')
     # if end_index < len(filtered_data):
     #     if st.button("Load more"):
     #         current_page += 1
